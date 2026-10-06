@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121614">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Диктофон">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Диктофон без интернета</title>
+<style>
+:root{
+  --bg:#f3f4f1; --panel:#ffffff; --fg:#1b1f1d; --muted:#6b736f; --line:#dde1dc;
+  --accent:#d6402b; --accent-fg:#ffffff; --ok:#1f7a55; --interim:#8a928d; --wave:#d6402b;
+  --font:"Segoe UI",system-ui,-apple-system,Roboto,"Helvetica Neue",Arial,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121614; --panel:#1b211e; --fg:#e8ece9; --muted:#8f9894; --line:#2c3531;
+  --accent:#ef5a44; --accent-fg:#1a0b08; --ok:#4cc38f; --interim:#7d8782; --wave:#ef5a44;}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--font);padding-inline:16px;padding-block:24px 48px}
+main{max-width:760px;margin:0 auto;display:grid;gap:16px}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font-size:1.4rem;margin:0;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:.9rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+.rec{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+#recBtn{width:84px;height:84px;border-radius:50%;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer;display:grid;place-items:center;flex:none;transition:transform .1s}
+#recBtn:hover{transform:scale(1.04)}
+#recBtn:focus-visible,button:focus-visible,select:focus-visible{outline:3px solid var(--fg);outline-offset:3px}
+#recBtn .dot{width:28px;height:28px;border-radius:50%;background:currentColor;transition:border-radius .15s}
+#recBtn.on .dot{border-radius:6px}
+.meter{flex:1;min-width:200px;display:grid;gap:8px}
+#wave{width:100%;height:56px;display:block}
+.row{display:flex;gap:12px;align-items:center;justify-content:space-between}
+#timer{font:600 1.5rem var(--mono);font-variant-numeric:tabular-nums}
+#status{color:var(--muted);font-size:.9rem}
+#status.live{color:var(--accent)}
+.opts{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);font-size:.9rem}
+.opts label{display:flex;gap:8px;align-items:center;color:var(--muted)}
+select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.head2{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button.b{font:inherit;font-size:.85rem;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
+button.b:hover{border-color:var(--fg)}
+button.b:disabled{opacity:.4;cursor:default}
+#out{min-height:220px;max-height:55vh;overflow-y:auto;font-size:1.05rem;line-height:1.65}
+#out p{margin:0 0 .7em;display:flex;gap:12px;min-width:0}
+#out time{font:.8rem var(--mono);color:var(--muted);padding-top:.25em;flex:none}
+#out span{min-width:0;overflow-wrap:anywhere}
+.hide-t time{display:none}
+#interim{color:var(--interim)}
+.empty{color:var(--muted)}
+.note{border-radius:8px;padding:10px 12px;font-size:.9rem;background:var(--bg);border:1px solid var(--line)}
+.note.err{border-color:var(--accent);color:var(--accent)}
+audio{width:100%}
+.clips{display:grid;gap:12px}
+.clip{display:grid;gap:8px}
+.clip .meta{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:.85rem;color:var(--muted)}
+.clip a{color:var(--fg)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.model{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:.9rem;color:var(--muted)}
+.bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;flex:1;min-width:120px}
+.bar i{display:block;height:100%;width:0;background:var(--ok);transition:width .2s}
+#status.busy{color:var(--ok)}
+html{-webkit-text-size-adjust:100%}
+body{padding-top:max(24px,env(safe-area-inset-top));padding-bottom:max(48px,env(safe-area-inset-bottom));padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+button,select{-webkit-tap-highlight-color:transparent}
+select{font-size:16px}
+@media (max-width:560px){button.b{padding:10px 14px}.card{padding:16px}#out{max-height:50vh}}
+.note a,.note code{font-family:var(--mono);font-size:.85em}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Диктофон без интернета</h1>
+    <span class="sub">Расшифровка прямо на вашем компьютере</span>
+  </header>
+
+  <div id="warn" class="note err" hidden></div>
+
+  <section class="card" aria-label="Запись">
+    <div class="rec">
+      <button id="recBtn" aria-label="Начать запись"><span class="dot"></span></button>
+      <div class="meter">
+        <div class="row"><span id="timer">00:00</span><span id="status">Загрузка модели…</span></div>
+        <canvas id="wave" height="56"></canvas>
+      </div>
+    </div>
+    <div class="opts">
+      <label>Язык
+        <select id="lang">
+          <option value="russian" selected>Русский</option>
+          <option value="auto">Определять сам</option>
+          <option value="english">English</option>
+          <option value="ukrainian">Українська</option>
+          <option value="german">Deutsch</option>
+          <option value="french">Français</option>
+          <option value="spanish">Español</option>
+          <option value="italian">Italiano</option>
+          <option value="turkish">Türkçe</option>
+          <option value="chinese">中文</option>
+        </select>
+      </label>
+      <label>Модель
+        <select id="model" disabled><option>нет моделей</option></select>
+      </label>
+      <label><input type="checkbox" id="keepAudio" checked> Сохранять аудио</label>
+      <label><input type="checkbox" id="showTime" checked> Время у фраз</label>
+    </div>
+    <div class="opts model" id="loadRow">
+      <span id="loadTxt">Загрузка модели…</span><div class="bar"><i id="loadBar"></i></div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Расшифровка">
+    <div class="head2">
+      <h2>Расшифровка</h2>
+      <div class="btns">
+        <button class="b" id="fileBtn">Расшифровать файл</button>
+        <input type="file" id="file" accept="audio/*,video/*" hidden>
+        <button class="b" id="copy" disabled>Копировать</button>
+        <button class="b" id="saveTxt" disabled>Скачать .txt</button>
+        <button class="b" id="clear" disabled>Очистить</button>
+      </div>
+    </div>
+    <div id="out" aria-live="polite"><p class="empty" id="ph">Нажмите на красную кнопку и говорите. Фраза появится через секунду-две после паузы.</p></div>
+  </section>
+
+  <section class="card" id="clipsCard" hidden aria-label="Записи">
+    <div class="head2"><h2>Записи</h2></div>
+    <div class="clips" id="clips"></div>
+  </section>
+</main>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const recBtn=$('recBtn'), timerEl=$('timer'), statusEl=$('status'), out=$('out'), warn=$('warn');
+  const TARGET=16000;
+
+  let recording=false, stream=null, mr=null, chunks=[], startedAt=0, tick=null;
+  let ctx=null, proc=null, src=null, analyser=null, raf=null;
+  let segments=[], interimEl=null, clipN=0;
+  let worker=null, ready=false, busy=false, queue=[], curJob=null, jobId=0;
+
+  function showWarn(html){ warn.innerHTML=html; warn.hidden=!html; }
+  function fmt(s){ s=Math.floor(s); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+  function cap(s){ s=s.trim(); return s?s[0].toUpperCase()+s.slice(1):s; }
+
+  if(location.protocol==='file:'){
+    showWarn('Страница открыта как файл. Запустите <code>start.bat</code> (или <code>python serve.py</code>) и откройте адрес <code>http://localhost:8000</code>.');
+  }
+
+  /* ---------- iPhone / offline helpers ---------- */
+  const IOS=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  async function offlineOK(){
+    try{
+      if(!('caches' in window)) return false;
+      let dec=false, ort=false;
+      for(const n of await caches.keys()){
+        for(const k of await (await caches.open(n)).keys()){
+          if(k.url.includes('decoder_model_merged_quantized')) dec=true;
+          if(k.url.includes('ort-wasm')) ort=true;
+        }
+      }
+      return dec && ort;
+    }catch(_){ return false; }
+  }
+  let wake=null;
+  async function lockScreen(){ try{ if(navigator.wakeLock) wake=await navigator.wakeLock.request('screen'); }catch(_){} }
+  function unlockScreen(){ try{ if(wake) wake.release(); }catch(_){} wake=null; }
+  document.addEventListener('visibilitychange',()=>{ if(recording && document.visibilityState==='visible') lockScreen(); });
+  async function prepareOffline(){
+    if(!('serviceWorker' in navigator) || location.protocol==='file:') return;
+    try{
+      await navigator.serviceWorker.register('sw.js');
+      await navigator.serviceWorker.ready;
+      if(!navigator.serviceWorker.controller){
+        await Promise.race([
+          new Promise(r=>navigator.serviceWorker.addEventListener('controllerchange',r,{once:true})),
+          new Promise(r=>setTimeout(r,6000))
+        ]);
+      }
+      if(navigator.storage && navigator.storage.persist) navigator.storage.persist();
+    }catch(_){}
+  }
+
+  /* ---------- model ---------- */
+  const SIZES=[['tiny','Tiny (быстрая)'],['base','Base (рекомендуется)'],['small','Small (точная)']];
+  async function findModels(){
+    const found=[];
+    for(const [id,label] of SIZES){
+      try{ const r=await fetch('models/onnx-community/whisper-'+id+'/config.json'); if(r.ok && (r.headers.get('content-type')||'').includes('json')) found.push([id,label]); }catch(_){}
+    }
+    return found;
+  }
+  let remote=false;
+  function startWorker(size){
+    ready=false; $('loadRow').hidden=false; $('loadBar').style.width='0';
+    $('loadTxt').textContent=remote?'Первый запуск: скачиваю модель, дальше интернет не нужен…':'Загрузка модели…'; statusEl.textContent='Загрузка модели…'; statusEl.className='';
+    if(worker) worker.terminate();
+    try{ worker=new Worker('worker.js',{type:'module'}); }catch(e){ showWarn('Не удалось запустить расшифровщик: '+e.message); return; }
+    worker.onmessage=onWorker;
+    worker.onerror=e=>showWarn('Ошибка расшифровщика: '+(e.message||'не удалось загрузить worker.js. Запускайте страницу через serve.py.'));
+    worker.postMessage({type:'load',size});
+  }
+  function onWorker(e){
+    const m=e.data;
+    if(m.type==='progress'){ $('loadBar').style.width=m.pct.toFixed(0)+'%'; $('loadTxt').textContent=(remote?'Скачиваю модель… ':'Загрузка модели… ')+m.pct.toFixed(0)+'%'; }
+    else if(m.type==='ready'){
+      ready=true; $('loadRow').hidden=true;
+      statusEl.textContent='Готов к записи'; statusEl.className='';
+      offlineOK().then(ok=>{ if(ok && !recording && !busy) statusEl.textContent='Готов · работает без интернета'; });
+      pump();
+    } else if(m.type==='result'){
+      busy=false; const j=curJob; curJob=null;
+      if(j) onResult(j,m.text);
+      pump(); updateStatus();
+    } else if(m.type==='error'){
+      busy=false; curJob=null;
+      if(m.where==='load') showWarn('Не удалось загрузить модель: '+m.message+'. Для первой загрузки нужен интернет.');
+      else showWarn('Ошибка расшифровки: '+m.message);
+      pump();
+    }
+  }
+  function updateStatus(){
+    if(recording) return;
+    if(busy||queue.length){ statusEl.textContent='Расшифровываю… осталось '+(queue.length+(busy?1:0)); statusEl.className='busy'; }
+    else if(ready){ statusEl.textContent='Готово'; statusEl.className=''; }
+  }
+  const BAD=/(субтитры (сделал|создавал|подогнал)|редактор субтитров|продолжение следует|спасибо за просмотр|подписывайтесь на канал|thanks for watching|dimatorzok|amara\.org)/i;
+  function clean(t){ t=t.replace(/^[\s.…,-]+$/,'').trim(); if(!t) return ''; if(t.length<90 && BAD.test(t)) return ''; return t; }
+  function onResult(j,text){
+    text=clean(text);
+    if(j.kind==='final'){
+      if(interimEl && j.gen!==gen) {} else setInterim('');
+      if(text) addSegment(j.t,text);
+    } else if(j.kind==='interim'){
+      if(j.gen===gen && recording && text) setInterim(text);
+    }
+  }
+  function enqueue(job){ queue.push(job); pump(); updateStatus(); }
+  function pump(){
+    if(!ready||busy) return;
+    const j=queue.shift(); if(!j) return;
+    busy=true; curJob=j;
+    worker.postMessage({type:'run',id:++jobId,audio:j.audio,lang:$('lang').value},[j.audio.buffer]);
+  }
+
+  /* ---------- transcript view ---------- */
+  function updateBtns(){ const has=segments.length>0; $('copy').disabled=$('saveTxt').disabled=$('clear').disabled=!has; }
+  function addSegment(t,text){
+    text=cap(text); if(!text) return;
+    segments.push({t,text});
+    const ph=$('ph'); if(ph) ph.remove();
+    const p=document.createElement('p');
+    const tm=document.createElement('time'); tm.textContent=fmt(t);
+    const sp=document.createElement('span'); sp.textContent=text;
+    p.append(tm,sp);
+    out.insertBefore(p, interimEl?interimEl.parentNode:null);
+    out.scrollTop=out.scrollHeight; updateBtns();
+  }
+  function setInterim(text){
+    if(!text){ if(interimEl){ interimEl.parentNode.remove(); interimEl=null; } return; }
+    if(!interimEl){
+      const ph=$('ph'); if(ph) ph.remove();
+      const p=document.createElement('p');
+      const tm=document.createElement('time'); tm.textContent=fmt((Date.now()-startedAt)/1000);
+      interimEl=document.createElement('span'); interimEl.id='interim';
+      p.append(tm,interimEl); out.appendChild(p);
+    }
+    interimEl.textContent=text; out.scrollTop=out.scrollHeight;
+  }
+  function plainText(){ const w=$('showTime').checked; return segments.map(s=>(w?'['+fmt(s.t)+'] ':'')+s.text).join('\n'); }
+  $('showTime').addEventListener('change',()=>out.classList.toggle('hide-t',!$('showTime').checked));
+  $('copy').onclick=async()=>{
+    try{ await navigator.clipboard.writeText(plainText()); }
+    catch(e){ const r=document.createRange(); r.selectNodeContents(out); const s=getSelection(); s.removeAllRanges(); s.addRange(r); }
+    const b=$('copy'), o=b.textContent; b.textContent='Скопировано'; setTimeout(()=>b.textContent=o,1500);
+  };
+  function download(blob,name){
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  }
+  $('saveTxt').onclick=()=>download(new Blob([plainText()],{type:'text/plain;charset=utf-8'}),'расшифровка.txt');
+  $('clear').onclick=()=>{ segments=[]; interimEl=null; out.innerHTML='<p class="empty" id="ph">Нажмите на красную кнопку и говорите. Фраза появится через секунду-две после паузы.</p>'; updateBtns(); };
+
+  /* ---------- waveform ---------- */
+  const cv=$('wave'), cx=cv.getContext('2d');
+  function sizeCv(){ const r=cv.getBoundingClientRect(), d=devicePixelRatio||1; cv.width=r.width*d; cv.height=56*d; }
+  addEventListener('resize',sizeCv); sizeCv();
+  const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function drawIdle(){ cx.clearRect(0,0,cv.width,cv.height); cx.fillStyle=css('--line'); cx.fillRect(0,cv.height/2-1,cv.width,2); }
+  drawIdle();
+  const hist=[];
+  function draw(){
+    const buf=new Uint8Array(analyser.fftSize); analyser.getByteTimeDomainData(buf);
+    let peak=0; for(const v of buf) peak=Math.max(peak,Math.abs(v-128)/128);
+    const d=devicePixelRatio||1; hist.push(peak);
+    const bars=Math.floor(cv.width/(5*d)); while(hist.length>bars) hist.shift();
+    cx.clearRect(0,0,cv.width,cv.height); cx.fillStyle=css('--wave');
+    hist.forEach((v,i)=>{ const h=Math.min(cv.height,Math.max(2*d,v*cv.height*1.6)); cx.fillRect(i*5*d,(cv.height-h)/2,3*d,h); });
+    raf=requestAnimationFrame(draw);
+  }
+
+  /* ---------- capture + simple voice detection ---------- */
+  let cur=[], curLen=0, curSpeech=0, sil=0, curStartT=0, noise=0.004, lastInterimAt=0, gen=0;
+  const PRE=0.3*TARGET;
+  function concat(parts,len){ const o=new Float32Array(len); let p=0; for(const a of parts){ o.set(a,p); p+=a.length; } return o; }
+  function finalize(){
+    if(curSpeech>=0.35){
+      enqueue({kind:'final',audio:concat(cur,curLen),t:curStartT,gen});
+    }
+    cur=[]; curLen=0; curSpeech=0; sil=0; gen++;
+  }
+  function onAudio(ev){
+    if(!recording) return;
+    const inp=ev.inputBuffer.getChannelData(0), ratio=ctx.sampleRate/TARGET;
+    const n=Math.floor(inp.length/ratio), o=new Float32Array(n);
+    for(let i=0;i<n;i++){ const s=Math.floor(i*ratio), e=Math.max(s+1,Math.floor((i+1)*ratio)); let a=0; for(let k=s;k<e;k++) a+=inp[k]; o[i]=a/(e-s); }
+    let sq=0; for(let i=0;i<n;i++) sq+=o[i]*o[i];
+    const rms=Math.sqrt(sq/n), dur=n/TARGET, thr=Math.max(0.012,noise*3);
+    const voice=rms>thr;
+    if(!voice) noise=noise*0.97+rms*0.03;
+    const now=(Date.now()-startedAt)/1000;
+    if(curSpeech===0 && !voice){
+      cur.push(o); curLen+=n;
+      while(curLen>PRE && cur.length>1){ curLen-=cur[0].length; cur.shift(); }
+      return;
+    }
+    if(curSpeech===0) curStartT=Math.max(0,now-curLen/TARGET-dur);
+    cur.push(o); curLen+=n;
+    if(voice){ curSpeech+=dur; sil=0; } else sil+=dur;
+    if(sil>=0.8 && curSpeech>=0.35) return finalize();
+    if(curLen>=20*TARGET) return finalize();
+    if(voice && curSpeech>1 && now-lastInterimAt>2.5 && !busy && queue.length===0){
+      lastInterimAt=now;
+      enqueue({kind:'interim',audio:concat(cur,curLen),gen});
+    }
+  }
+
+  /* ---------- recording ---------- */
+  async function start(){
+    showWarn('');
+    const AC=window.AudioContext||window.webkitAudioContext;
+    ctx=new AC(); try{ ctx.resume(); }catch(_){} // на iPhone создаётся прямо в момент нажатия
+    if(!navigator.mediaDevices){ try{ ctx.close(); }catch(_){} showWarn('Микрофон доступен только на https-странице или http://localhost.'); return; }
+    try{ stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,channelCount:1}}); }
+    catch(e){ try{ ctx.close(); }catch(_){} ctx=null; showWarn(e&&e.name==='NotFoundError'?'Микрофон не найден.':'Нет доступа к микрофону. На iPhone: Настройки → Safari → Микрофон, либо нажмите «аА» в адресной строке → Настройки веб-сайта.'); return; }
+    recording=true; startedAt=Date.now(); hist.length=0; cur=[]; curLen=0; curSpeech=0; sil=0; lastInterimAt=0; gen++;
+    recBtn.classList.add('on'); recBtn.setAttribute('aria-label','Остановить запись');
+    statusEl.textContent='Идёт запись'; statusEl.className='live';
+    tick=setInterval(()=>timerEl.textContent=fmt((Date.now()-startedAt)/1000),250);
+
+    src=ctx.createMediaStreamSource(stream);
+    analyser=ctx.createAnalyser(); analyser.fftSize=1024; src.connect(analyser);
+    proc=ctx.createScriptProcessor(4096,1,1); proc.onaudioprocess=onAudio;
+    const mute=ctx.createGain(); mute.gain.value=0;
+    src.connect(proc); proc.connect(mute); mute.connect(ctx.destination);
+    draw(); lockScreen();
+
+    if($('keepAudio').checked && window.MediaRecorder){
+      chunks=[];
+      try{ mr=new MediaRecorder(stream); }catch(_){ mr=null; }
+      if(mr){
+        mr.ondataavailable=e=>{ if(e.data.size) chunks.push(e.data); };
+        const t0=Date.now();
+        mr.onstop=()=>{ if(chunks.length) addClip(new Blob(chunks,{type:mr.mimeType||'audio/webm'}),(Date.now()-t0)/1000); };
+        mr.start(1000);
+      }
+    }
+  }
+  function stop(){
+    if(!recording) return;
+    finalize();
+    recording=false;
+    clearInterval(tick); cancelAnimationFrame(raf);
+    const dur=(Date.now()-startedAt)/1000;
+    if(mr && mr.state!=='inactive'){ try{ mr.stop(); }catch(_){} }
+    try{ proc.disconnect(); src.disconnect(); }catch(_){}
+    if(stream) stream.getTracks().forEach(t=>t.stop());
+    if(ctx) ctx.close();
+    unlockScreen();
+    recBtn.classList.remove('on'); recBtn.setAttribute('aria-label','Начать запись');
+    timerEl.textContent='00:00'; drawIdle();
+    if(busy||queue.length) updateStatus(); else { statusEl.textContent='Остановлено, '+fmt(dur); statusEl.className=''; }
+  }
+  recBtn.onclick=()=>recording?stop():start();
+  document.addEventListener('keydown',e=>{ if(e.code==='Space' && !/^(SELECT|INPUT|BUTTON)$/.test(e.target.tagName)){ e.preventDefault(); recBtn.click(); } });
+
+  function addClip(blob,dur){
+    clipN++;
+    const url=URL.createObjectURL(blob), ext=blob.type.includes('mp4')?'m4a':blob.type.includes('ogg')?'ogg':'webm';
+    const d=document.createElement('div'); d.className='clip';
+    const meta=document.createElement('div'); meta.className='meta';
+    const l=document.createElement('span'); l.textContent='Запись '+clipN+' · '+fmt(dur)+' · '+new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+    const b=document.createElement('button'); b.className='b'; b.textContent='Скачать аудио'; b.onclick=()=>download(blob,'запись-'+clipN+'.'+ext);
+    meta.append(l,b);
+    const a=document.createElement('audio'); a.controls=true; a.src=url;
+    d.append(meta,a); $('clips').prepend(d); $('clipsCard').hidden=false;
+  }
+
+  /* ---------- audio file ---------- */
+  $('fileBtn').onclick=()=>$('file').click();
+  $('file').onchange=async e=>{
+    const f=e.target.files[0]; e.target.value=''; if(!f) return;
+    showWarn('');
+    statusEl.textContent='Читаю файл…'; statusEl.className='busy';
+    try{
+      const ac=new (window.AudioContext||window.webkitAudioContext)();
+      const dec=await ac.decodeAudioData(await f.arrayBuffer()); ac.close();
+      const off=new OfflineAudioContext(1,Math.ceil(dec.duration*TARGET),TARGET);
+      const s=off.createBufferSource(); s.buffer=dec; s.connect(off.destination); s.start();
+      const data=(await off.startRendering()).getChannelData(0);
+      let pos=0; const W=25*TARGET, win=Math.floor(0.1*TARGET);
+      while(pos<data.length){
+        let end=Math.min(pos+W,data.length);
+        if(end<data.length){ // режем в самом тихом месте последних 4 секунд
+          let best=Infinity, at=end;
+          for(let p=end-4*TARGET;p<end-win;p+=win){ let q=0; for(let k=p;k<p+win;k++) q+=data[k]*data[k]; if(q<best){ best=q; at=p+win/2; } }
+          end=Math.floor(at);
+        }
+        enqueue({kind:'final',audio:data.slice(pos,end),t:pos/TARGET,gen:-1});
+        pos=end;
+      }
+    }catch(err){ showWarn('Не удалось прочитать файл: '+err.message); updateStatus(); }
+  };
+
+  /* ---------- init ---------- */
+  (async()=>{
+    if(location.protocol==='file:'){ statusEl.textContent='Нужен запуск через serve.py'; $('loadRow').hidden=true; return; }
+    await prepareOffline();
+    const found=await findModels();
+    const sel=$('model');
+    if(!found.length){
+      remote=true;
+      SIZES.forEach(([id,l])=>found.push([id,l.replace(')',', ~'+({tiny:'40',base:'100',small:'300'})[id]+' МБ)')]));
+    }
+    sel.innerHTML=''; found.forEach(([id,l])=>{ const o=document.createElement('option'); o.value=id; o.textContent=l; sel.appendChild(o); });
+    sel.disabled=false;
+    let pick=IOS?'tiny':'base'; try{ const sv=localStorage.getItem('dikt-model'); if(sv) pick=sv; }catch(_){}
+    if(!found.some(f=>f[0]===pick)) pick=found[0][0];
+    sel.value=pick;
+    sel.onchange=()=>{ try{ localStorage.setItem('dikt-model',sel.value); }catch(_){} startWorker(sel.value); };
+    startWorker(pick);
+  })();
+})();
+</script>
+</body>
+</html>
